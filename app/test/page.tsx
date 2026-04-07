@@ -418,6 +418,40 @@ export default function TestPage() {
           </div>
         </div>
       </div>
+
+      {/* DEV ONLY — section jump panel. Remove before launch. */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 right-4 bg-gray-900 text-white rounded-xl shadow-xl p-3 text-xs z-50">
+          <p className="text-gray-400 font-mono mb-2 px-1">⚡ dev jump</p>
+          <div className="flex flex-col gap-1">
+            {sections.map((s, i) => (
+              <button
+                key={s.id}
+                onClick={() => {
+                  setCurrentSectionIndex(i)
+                  setCurrentQuestionIndex(0)
+                  setCurrentClipIndex(0)
+                  setPassageCollapsed(false)
+                }}
+                className={[
+                  'px-3 py-1.5 rounded-lg text-left font-mono transition-colors',
+                  i === currentSectionIndex
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700',
+                ].join(' ')}
+              >
+                {i + 1}. {s.label}
+              </button>
+            ))}
+            <button
+              onClick={() => router.push('/report/demo')}
+              className="px-3 py-1.5 rounded-lg text-left font-mono bg-gray-800 text-gray-300 hover:bg-gray-700 mt-1 border-t border-gray-700 pt-2"
+            >
+              → Report (demo)
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
