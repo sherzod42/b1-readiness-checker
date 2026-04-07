@@ -1,116 +1,128 @@
+import { createServiceClient } from '@/lib/supabase'
+import EmailGate from '@/components/EmailGate'
+import ReportContent from '@/components/ReportContent'
+import type { Attempt } from '@/components/ReportContent'
+
 type Props = {
-  params: Promise<{ id: string }>;
-};
+  params: Promise<{ id: string }>
+}
+
+const demoAttempt: Attempt = {
+  id: 'demo',
+  email: 'demo@example.com',
+  score_lesen: 3,
+  score_sprachbausteine: 4,
+  score_hoeren: 3,
+  score_schreiben: 65,
+  score_sprechen: 70,
+  answers: {
+    lesen: {
+      'lesen-q1': 1,
+      'lesen-q2': 1,
+      'lesen-q3': 1,
+      'lesen-q4': 2,
+      'lesen-q5': 1,
+    },
+    sprachbausteine: {
+      'sprach-q1': 0,
+      'sprach-q2': 1,
+      'sprach-q3': 0,
+      'sprach-q4': 1,
+      'sprach-q5': 1,
+      'sprach-q6': 2,
+    },
+    hoeren: {
+      'hoeren-q1': 1,
+      'hoeren-q2': 0,
+      'hoeren-q3': 2,
+      'hoeren-q4': 1,
+    },
+  },
+  writing_text: 'Liebe Anna, vielen Dank für deine Nachricht! Ja, am Samstag habe ich Zeit. Ich würde gerne das neue Café besuchen, weil ich schon viel Gutes darüber gehört habe. Wie wäre es um 15 Uhr? Das wäre perfekt für mich. Ich freue mich sehr auf unser Treffen! Viele Grüße',
+  writing_evaluation: {
+    grammar: 19,
+    vocabulary: 17,
+    taskCompletion: 21,
+    coherence: 18,
+    strengths: ['Klare Struktur', 'Alle Aufgaben erfüllt'],
+    weaknesses: ['Wortschatz könnte vielfältiger sein', 'Einige Grammatikfehler bei Konjunktionen'],
+    recommendation: 'Üben Sie mehr Konjunktionen und erweitern Sie Ihren aktiven Wortschatz durch tägliches Lesen.',
+  },
+  speaking_transcript: 'Ich sehe ein Bild von einem Park. Es gibt viele Menschen. Einige Leute spielen Schach und andere joggen. Das Wetter ist schön und ich denke es ist Sommer weil die Leute leichte Kleidung tragen.',
+  speaking_evaluation: {
+    grammar: 17,
+    vocabulary: 16,
+    taskCompletion: 20,
+    fluency: 15,
+    strengths: ['Gute Beschreibung der Aktivitäten', 'Logische Schlussfolgerung zur Jahreszeit'],
+    weaknesses: ['Flüssigkeit kann verbessert werden', 'Wenig komplexe Satzkonstruktionen'],
+    recommendation: 'Üben Sie das freie Sprechen täglich, z.B. indem Sie Bilder beschreiben oder Ereignisse des Tages erzählen.',
+  },
+}
 
 export default async function ReportPage({ params }: Props) {
-  const { id } = await params;
+  const { id } = await params
 
-  const sections = [
-    { label: "Lesen", sub: "Reading", score: 72 },
-    { label: "Sprachbausteine", sub: "Grammar", score: 58 },
-    { label: "Hören", sub: "Listening", score: 80 },
-    { label: "Schreiben", sub: "Writing", score: 65 },
-    { label: "Sprechen", sub: "Speaking", score: 70 },
-  ];
+  // Demo mode — always works without Supabase
+  if (id === 'demo') {
+    return (
+      <main className="min-h-screen bg-gray-50">
+        <header className="bg-white border-b border-gray-100 px-6 py-4">
+          <span className="text-sm font-semibold text-gray-500 tracking-wide uppercase">
+            B1 Readiness Checker · Ihr Bericht
+          </span>
+        </header>
+        <div className="bg-blue-50 border-b border-blue-100 px-6 py-3 text-center">
+          <p className="text-sm text-blue-700">
+            Dies ist ein Demo-Bericht mit Beispieldaten. Echte Berichte werden nach Abschluss des vollständigen Tests erstellt.
+          </p>
+        </div>
+        <ReportContent attempt={demoAttempt} blurred={false} />
+      </main>
+    )
+  }
 
-  const overall = Math.round(
-    sections.reduce((sum, s) => sum + s.score, 0) / sections.length
-  );
+  // Real attempt — fetch from Supabase
+  const supabase = createServiceClient()
+  const { data: attempt } = await supabase
+    .from('attempts')
+    .select('*')
+    .eq('id', id)
+    .single()
 
-  const readinessLabel =
-    overall >= 75 ? "Likely Ready" : overall >= 55 ? "Almost Ready" : "Needs Work";
+  if (!attempt) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center space-y-2">
+          <h1 className="text-xl font-bold text-gray-900">Bericht nicht gefunden</h1>
+          <p className="text-sm text-gray-500">Der angeforderte Bericht existiert nicht oder ist abgelaufen.</p>
+        </div>
+      </main>
+    )
+  }
 
-  const readinessColor =
-    overall >= 75
-      ? "text-green-600 bg-green-50"
-      : overall >= 55
-      ? "text-yellow-600 bg-yellow-50"
-      : "text-red-600 bg-red-50";
+  const typedAttempt = attempt as Attempt
 
   return (
     <main className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b border-gray-100 px-6 py-4">
         <span className="text-sm font-semibold text-gray-500 tracking-wide uppercase">
-          B1 Readiness Checker · Your Report
+          B1 Readiness Checker · Ihr Bericht
         </span>
       </header>
 
-      <div className="max-w-2xl mx-auto px-6 py-12 space-y-8">
-        {/* Overall score */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center space-y-4">
-          <p className="text-sm text-gray-400 uppercase tracking-wide font-medium">
-            Overall Readiness
-          </p>
-          <div className="text-7xl font-bold text-gray-900">{overall}%</div>
-          <span
-            className={`inline-block text-sm font-semibold px-4 py-1.5 rounded-full ${readinessColor}`}
-          >
-            {readinessLabel}
-          </span>
-          <p className="text-sm text-gray-500 max-w-xs mx-auto">
-            {overall >= 75
-              ? "You're well prepared for the TELC B1 exam. Keep practicing to stay sharp."
-              : overall >= 55
-              ? "You're close! A few weeks of focused practice and you'll be ready."
-              : "You need more preparation before taking the TELC B1 exam."}
-          </p>
-        </div>
+      {/* Email gate: shown when email not yet captured */}
+      {!typedAttempt.email && (
+        <>
+          <EmailGate attemptId={id} />
+          <ReportContent attempt={demoAttempt} blurred={true} />
+        </>
+      )}
 
-        {/* Section breakdown */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-6">
-          <h2 className="font-bold text-gray-900 text-lg">Section Breakdown</h2>
-          {sections.map((s) => (
-            <div key={s.label} className="space-y-1.5">
-              <div className="flex justify-between items-baseline">
-                <div>
-                  <span className="text-sm font-semibold text-gray-800">{s.label}</span>
-                  <span className="text-xs text-gray-400 ml-2">{s.sub}</span>
-                </div>
-                <span className="text-sm font-bold text-gray-700">{s.score}%</span>
-              </div>
-              <div className="h-2 bg-gray-100 rounded-full">
-                <div
-                  className={`h-2 rounded-full ${
-                    s.score >= 75
-                      ? "bg-green-500"
-                      : s.score >= 55
-                      ? "bg-yellow-400"
-                      : "bg-red-400"
-                  }`}
-                  style={{ width: `${s.score}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Study plan placeholder */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-4">
-          <h2 className="font-bold text-gray-900 text-lg">Your Study Plan</h2>
-          <p className="text-sm text-gray-500">
-            AI-generated study recommendations will appear here after you complete the
-            full test. They will be tailored to your weakest sections.
-          </p>
-          <div className="space-y-3">
-            {["Focus on Sprachbausteine (Grammar) — your weakest section", "Practice writing semi-formal emails", "Listen to German podcasts daily for 15 min"].map(
-              (tip) => (
-                <div key={tip} className="flex items-start gap-3">
-                  <span className="text-blue-500 mt-0.5">→</span>
-                  <span className="text-sm text-gray-700">{tip}</span>
-                </div>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* Demo note */}
-        {id === "demo" && (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl px-6 py-4 text-sm text-blue-700 text-center">
-            This is a demo report with placeholder scores. Real reports are generated after completing the full test.
-          </div>
-        )}
-      </div>
+      {/* Full report: shown once email is captured */}
+      {typedAttempt.email && (
+        <ReportContent attempt={typedAttempt} blurred={false} />
+      )}
     </main>
-  );
+  )
 }

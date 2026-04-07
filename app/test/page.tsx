@@ -250,7 +250,7 @@ export default function TestPage() {
       await saveHoerenAnswers(lesenAnswers, sprachAnswers, hoerenAnswers)
 
       if (isLastActiveSection) {
-        router.push('/report/demo')
+        router.push(`/report/${attemptId}`)
         return
       }
 
@@ -290,7 +290,7 @@ export default function TestPage() {
     }
 
     if (isLastActiveSection) {
-      router.push('/report/demo')
+      router.push(`/report/${attemptId}`)
       return
     }
 
@@ -303,7 +303,7 @@ export default function TestPage() {
 
   function advanceSection() {
     if (isLastActiveSection) {
-      router.push('/report/demo')
+      router.push(`/report/${attemptId}`)
       return
     }
     setCurrentSectionIndex((i) => i + 1)
@@ -573,7 +573,7 @@ export default function TestPage() {
                 <img
                   src={(currentSection as SprechenSection).imageSrc}
                   alt={(currentSection as SprechenSection).imageAlt}
-                  className="w-full object-cover max-h-72"
+                  className="w-full object-cover"
                 />
               </div>
 
@@ -659,7 +659,7 @@ export default function TestPage() {
               </button>
             ))}
             <button
-              onClick={() => router.push('/report/demo')}
+              onClick={() => router.push(`/report/${attemptId || 'demo'}`)}
               className="px-3 py-1.5 rounded-lg text-left font-mono bg-gray-800 text-gray-300 hover:bg-gray-700 mt-1 border-t border-gray-700 pt-2"
             >
               → Report (demo)
