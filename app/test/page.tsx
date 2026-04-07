@@ -11,9 +11,11 @@ import type {
   SprachbausteineSection,
   HoerenSection,
   SchreibenSection,
+  SprechenSection,
 } from '@/data/questions'
 import QuestionCard from '@/components/QuestionCard'
 import AudioPlayer from '@/components/AudioPlayer'
+import SpeakingRecorder from '@/components/SpeakingRecorder'
 
 // All 5 exam sections for the progress bar
 const ALL_SECTIONS = [
@@ -43,6 +45,7 @@ export default function TestPage() {
   const [passageCollapsed, setPassageCollapsed] = useState(false)
   const [writingText, setWritingText] = useState('')
   const [isEvaluating, setIsEvaluating] = useState(false)
+  const [isTranscribing, setIsTranscribing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Create a new attempt row in Supabase on mount
@@ -66,19 +69,20 @@ export default function TestPage() {
   const isHoerenSection = currentSection.id === 'hoeren'
   const isLesenSection = currentSection.id === 'lesen'
   const isSchreibenSection = currentSection.id === 'schreiben'
+  const isSprechenSection = currentSection.id === 'sprechen'
   const isLastActiveSection = currentSectionIndex === sections.length - 1
 
-  // Derive current questions based on section type (not applicable for Schreiben)
-  const currentQuestions: (MCQuestion | ClozeQuestion)[] = isSchreibenSection
+  // Derive current questions based on section type (not applicable for Schreiben/Sprechen)
+  const currentQuestions: (MCQuestion | ClozeQuestion)[] = isSchreibenSection || isSprechenSection
     ? []
     : isHoerenSection
     ? (currentSection as HoerenSection).clips[currentClipIndex].questions
     : (currentSection as LesenSection | SprachbausteineSection).questions as (MCQuestion | ClozeQuestion)[]
 
-  const currentQuestion = isSchreibenSection ? null : currentQuestions[currentQuestionIndex]
+  const currentQuestion = (isSchreibenSection || isSprechenSection) ? null : currentQuestions[currentQuestionIndex]
   const selectedAnswer = currentQuestion ? (answers[currentQuestion.id] ?? null) : null
 
-  const isLastQuestionInSection = isSchreibenSection
+  const isLastQuestionInSection = (isSchreibenSection || isSprechenSection)
     ? true
     : currentQuestionIndex === currentQuestions.length - 1
 
@@ -198,8 +202,11 @@ export default function TestPage() {
         setIsEvaluating(false)
       }
 
-      // Advance to Sprechen (not yet built) → navigate to report
-      router.push('/report/demo')
+      // Advance to Sprechen section
+      setCurrentSectionIndex((i) => i + 1)
+      setCurrentQuestionIndex(0)
+      setCurrentClipIndex(0)
+      setPassageCollapsed(false)
       return
     }
 
@@ -294,6 +301,59 @@ export default function TestPage() {
     setPassageCollapsed(false)
   }
 
+  function advanceSection() {
+    if (isLastActiveSection) {
+      router.push('/report/demo')
+      return
+    }
+    setCurrentSectionIndex((i) => i + 1)
+    setCurrentQuestionIndex(0)
+    setCurrentClipIndex(0)
+    setPassageCollapsed(false)
+  }
+
+  async function handleSpeakingSubmit(audioBlob: Blob) {
+    setIsTranscribing(true)
+    try {
+      // 1. Transcribe
+      const fd = new FormData()
+      fd.append('audio', audioBlob)
+      const transcribeRes = await fetch('/api/transcribe', { method: 'POST', body: fd })
+      const { transcript } = await transcribeRes.json() as { transcript: string }
+
+      // 2. Evaluate
+      setIsEvaluating(true)
+      const evalRes = await fetch('/api/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: transcript, type: 'speaking' }),
+      })
+      const evaluation = await evalRes.json() as { score: number }
+
+      // 3. Save to Supabase
+      if (attemptId) {
+        try {
+          await supabase.from('attempts').update({
+            speaking_transcript: transcript,
+            speaking_evaluation: evaluation,
+            score_sprechen: evaluation.score,
+          }).eq('id', attemptId)
+        } catch {
+          // Non-blocking
+        }
+      }
+
+      // 4. Move to next section (or done)
+      advanceSection()
+    } catch {
+      // Non-blocking — still advance on failure
+      advanceSection()
+    } finally {
+      setIsTranscribing(false)
+      setIsEvaluating(false)
+    }
+  }
+
   // Derive next button label
   let nextLabel = 'Next →'
   if (isSchreibenSection) {
@@ -310,18 +370,21 @@ export default function TestPage() {
   }
 
   // Progress bar: count all questions across active sections
-  // Schreiben contributes 1 (answered when writingText.length > 0)
+  // Schreiben and Sprechen each contribute 1
   const totalActiveQuestions = sections.reduce((acc, s) => {
     if (s.id === 'hoeren') {
       return acc + (s as HoerenSection).clips.reduce((a, c) => a + c.questions.length, 0)
     }
-    if (s.id === 'schreiben') {
+    if (s.id === 'schreiben' || s.id === 'sprechen') {
       return acc + 1
     }
     return acc + (s as LesenSection | SprachbausteineSection).questions.length
   }, 0)
   const schreibenAnswered = writingText.length > 0 ? 1 : 0
-  const answeredCount = Object.keys(answers).length + schreibenAnswered
+  // Sprechen counts as answered once we've moved past it (currentSectionIndex > sprechen index)
+  const sprechenIndex = sections.findIndex((s) => s.id === 'sprechen')
+  const sprechenAnswered = sprechenIndex >= 0 && currentSectionIndex > sprechenIndex ? 1 : 0
+  const answeredCount = Object.keys(answers).length + schreibenAnswered + sprechenAnswered
   const progressPct = Math.round((answeredCount / totalActiveQuestions) * 100)
 
   return (
@@ -353,7 +416,7 @@ export default function TestPage() {
             {ALL_SECTIONS.map((s, i) => {
               const isActive = i === currentSectionIndex
               const isCompleted = i < currentSectionIndex
-              const isLocked = i >= sections.length // phases not yet built (Sprechen = index 4)
+              const isLocked = i >= sections.length // phases not yet built
 
               return (
                 <div key={s.id} className="flex flex-col items-center gap-1">
@@ -405,6 +468,8 @@ export default function TestPage() {
               </span>
             ) : isSchreibenSection ? (
               <span className="text-sm text-gray-400">Freies Schreiben</span>
+            ) : isSprechenSection ? (
+              <span className="text-sm text-gray-400">Mündliche Beschreibung</span>
             ) : (
               <span className="text-sm text-gray-400">
                 Question {currentQuestionIndex + 1} of {currentQuestions.length}
@@ -499,8 +564,53 @@ export default function TestPage() {
             </div>
           )}
 
-          {/* Question card (non-Schreiben sections only) */}
-          {!isSchreibenSection && currentQuestion && (
+          {/* Sprechen speaking UI */}
+          {isSprechenSection && (
+            <div className="space-y-4">
+              {/* Picture description box */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-3">
+                <div className="flex items-center gap-2 text-gray-500 text-sm font-medium">
+                  {/* Camera icon */}
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>Bildbeschreibung</span>
+                  <span className="text-xs text-gray-400 ml-1">— {(currentSection as SprechenSection).imageAlt}</span>
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4">
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    {(currentSection as SprechenSection).imageDescription}
+                  </p>
+                </div>
+              </div>
+
+              {/* Task instruction */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4">
+                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line font-medium">
+                  {(currentSection as SprechenSection).task}
+                </p>
+              </div>
+
+              {/* Transcribing / evaluating loading states replace the recorder */}
+              {isTranscribing || isEvaluating ? (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 flex flex-col items-center gap-4">
+                  <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                  <p className="text-sm font-medium text-gray-600">
+                    {isTranscribing ? 'Transkribiere...' : 'Wird bewertet...'}
+                  </p>
+                </div>
+              ) : (
+                <SpeakingRecorder
+                  maxSeconds={(currentSection as SprechenSection).recordingSeconds}
+                  onSubmit={handleSpeakingSubmit}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Question card (non-Schreiben, non-Sprechen sections only) */}
+          {!isSchreibenSection && !isSprechenSection && currentQuestion && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
               <QuestionCard
                 question={currentQuestion}
@@ -512,21 +622,23 @@ export default function TestPage() {
             </div>
           )}
 
-          {/* Next button */}
-          <div className="flex justify-end">
-            <button
-              onClick={handleNext}
-              disabled={isSchreibenSection ? (wordCount < 60 || isEvaluating) : selectedAnswer === null}
-              className={[
-                'inline-flex items-center justify-center font-semibold px-8 py-3 rounded-xl transition-colors text-sm',
-                (isSchreibenSection ? wordCount >= 60 && !isEvaluating : selectedAnswer !== null)
-                  ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed',
-              ].join(' ')}
-            >
-              {nextLabel}
-            </button>
-          </div>
+          {/* Next button — hidden for Sprechen (recorder handles its own submission) */}
+          {!isSprechenSection && (
+            <div className="flex justify-end">
+              <button
+                onClick={handleNext}
+                disabled={isSchreibenSection ? (wordCount < 60 || isEvaluating) : selectedAnswer === null}
+                className={[
+                  'inline-flex items-center justify-center font-semibold px-8 py-3 rounded-xl transition-colors text-sm',
+                  (isSchreibenSection ? wordCount >= 60 && !isEvaluating : selectedAnswer !== null)
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed',
+                ].join(' ')}
+              >
+                {nextLabel}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

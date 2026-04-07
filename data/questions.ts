@@ -52,7 +52,17 @@ export type SchreibenSection = {
   maxWords: number      // 100
 }
 
-export type TestSection = LesenSection | SprachbausteineSection | HoerenSection | SchreibenSection
+export type SprechenSection = {
+  id: 'sprechen'
+  label: 'Sprechen'
+  imageAlt: string
+  imageDescription: string
+  task: string
+  preparationSeconds: number
+  recordingSeconds: number
+}
+
+export type TestSection = LesenSection | SprachbausteineSection | HoerenSection | SchreibenSection | SprechenSection
 
 // ---------------------------------------------------------------------------
 // Lesen — Reading passage + 5 multiple-choice questions
@@ -277,4 +287,19 @@ Anna`,
   maxWords: 100,
 }
 
-export const sections: TestSection[] = [lesenSection, sprachbausteineSection, hoerenSection, schreibenSection]
+const sprechenSection: SprechenSection = {
+  id: 'sprechen',
+  label: 'Sprechen',
+  imageDescription: `Das Bild zeigt einen belebten Stadtpark an einem sonnigen Tag. Im Vordergrund sitzen zwei ältere Männer auf einer Bank und spielen Schach. Hinter ihnen joggen mehrere Personen auf einem Weg. Kinder spielen auf einem Spielplatz in der Nähe. Im Hintergrund sind Bäume und ein kleiner Teich zu sehen.`,
+  imageAlt: 'Stadtpark mit Menschen beim Schachspielen, Joggen und Spielen',
+  task: `Beschreiben Sie das Bild. Sagen Sie:
+• Was sehen Sie auf dem Bild?
+• Was machen die Menschen?
+• Welche Jahreszeit könnte es sein und warum?
+
+Sie haben 30 Sekunden zur Vorbereitung und dann 60 Sekunden zum Sprechen.`,
+  preparationSeconds: 30,
+  recordingSeconds: 60,
+}
+
+export const sections: TestSection[] = [lesenSection, sprachbausteineSection, hoerenSection, schreibenSection, sprechenSection]
