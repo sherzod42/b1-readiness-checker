@@ -29,7 +29,20 @@ export type SprachbausteineSection = {
   questions: ClozeQuestion[]
 }
 
-export type TestSection = LesenSection | SprachbausteineSection
+export type HoerenClip = {
+  id: string
+  audioSrc: string
+  transcript?: string
+  questions: MCQuestion[]
+}
+
+export type HoerenSection = {
+  id: 'hoeren'
+  label: 'Hören'
+  clips: HoerenClip[]
+}
+
+export type TestSection = LesenSection | SprachbausteineSection | HoerenSection
 
 // ---------------------------------------------------------------------------
 // Lesen — Reading passage + 5 multiple-choice questions
@@ -175,4 +188,61 @@ const sprachbausteineSection: SprachbausteineSection = {
   ],
 }
 
-export const sections: TestSection[] = [lesenSection, sprachbausteineSection]
+const hoerenSection: HoerenSection = {
+  id: 'hoeren',
+  label: 'Hören',
+  clips: [
+    {
+      id: 'clip1',
+      audioSrc: '/clip1.mp3',
+      questions: [
+        {
+          id: 'hoeren-q1',
+          type: 'mc',
+          question: 'Warum kann Markus am Samstag nicht kommen?',
+          options: [
+            'Er ist krank.',
+            'Er muss arbeiten.',
+            'Er besucht seine Eltern.',
+            'Er hat keinen Zug.',
+          ],
+          correct: 1,
+        },
+        {
+          id: 'hoeren-q2',
+          type: 'mc',
+          question: 'Um wie viel Uhr kommt Markus am Sonntag an?',
+          options: ['Um 15 Uhr', 'Um 16 Uhr', 'Um 17 Uhr', 'Um 18 Uhr'],
+          correct: 2,
+        },
+      ],
+    },
+    {
+      id: 'clip2',
+      audioSrc: '/clip2.mp3',
+      questions: [
+        {
+          id: 'hoeren-q3',
+          type: 'mc',
+          question: 'Welche U-Bahn-Linie ist von den Bauarbeiten betroffen?',
+          options: ['U1', 'U2', 'U3', 'U6'],
+          correct: 2,
+        },
+        {
+          id: 'hoeren-q4',
+          type: 'mc',
+          question: 'Wie viel länger dauert die Fahrt während der Sperrung?',
+          options: [
+            '5 Minuten',
+            '10 bis 15 Minuten',
+            '20 Minuten',
+            '30 Minuten',
+          ],
+          correct: 1,
+        },
+      ],
+    },
+  ],
+}
+
+export const sections: TestSection[] = [lesenSection, sprachbausteineSection, hoerenSection]

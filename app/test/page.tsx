@@ -4,10 +4,17 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { sections } from '@/data/questions'
-import type { MCQuestion, ClozeQuestion } from '@/data/questions'
+import type {
+  MCQuestion,
+  ClozeQuestion,
+  LesenSection,
+  SprachbausteineSection,
+  HoerenSection,
+} from '@/data/questions'
 import QuestionCard from '@/components/QuestionCard'
+import AudioPlayer from '@/components/AudioPlayer'
 
-// All 5 exam sections for the progress bar (only first 2 are active in Phase 2)
+// All 5 exam sections for the progress bar
 const ALL_SECTIONS = [
   { id: 'lesen', label: 'Lesen' },
   { id: 'sprachbausteine', label: 'Sprachbausteine' },
@@ -29,6 +36,7 @@ export default function TestPage() {
 
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [currentClipIndex, setCurrentClipIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, number>>({})
   const [attemptId, setAttemptId] = useState<string | null>(null)
   const [passageCollapsed, setPassageCollapsed] = useState(false)
@@ -51,17 +59,32 @@ export default function TestPage() {
   }, [])
 
   const currentSection = sections[currentSectionIndex]
-  const currentQuestions = currentSection.questions as (MCQuestion | ClozeQuestion)[]
+  const isHoerenSection = currentSection.id === 'hoeren'
+  const isLesenSection = currentSection.id === 'lesen'
+  const isLastActiveSection = currentSectionIndex === sections.length - 1
+
+  // Derive current questions based on section type
+  const currentQuestions: (MCQuestion | ClozeQuestion)[] = isHoerenSection
+    ? (currentSection as HoerenSection).clips[currentClipIndex].questions
+    : (currentSection as LesenSection | SprachbausteineSection).questions as (MCQuestion | ClozeQuestion)[]
+
   const currentQuestion = currentQuestions[currentQuestionIndex]
   const selectedAnswer = answers[currentQuestion.id] ?? null
 
   const isLastQuestionInSection = currentQuestionIndex === currentQuestions.length - 1
-  const isLastActiveSection = currentSectionIndex === sections.length - 1
+
+  // For Hören: check if this is the last clip
+  const hoerenClips = isHoerenSection
+    ? (currentSection as HoerenSection).clips
+    : null
+  const isLastClip = hoerenClips
+    ? currentClipIndex === hoerenClips.length - 1
+    : false
 
   // Save lesen answers to Supabase when section completes
   async function saveLesenAnswers(lesenAnswers: Record<string, number>) {
     if (!attemptId) return
-    const lesenSection = sections[0]
+    const lesenSection = sections[0] as LesenSection
     const lesenQuestions = lesenSection.questions as (MCQuestion | ClozeQuestion)[]
     const score = calculateScore(lesenAnswers, lesenQuestions)
     try {
@@ -83,7 +106,7 @@ export default function TestPage() {
     sprachAnswers: Record<string, number>
   ) {
     if (!attemptId) return
-    const sprachSection = sections[1]
+    const sprachSection = sections[1] as SprachbausteineSection
     const sprachQuestions = sprachSection.questions as (MCQuestion | ClozeQuestion)[]
     const score = calculateScore(sprachAnswers, sprachQuestions)
     try {
@@ -92,6 +115,35 @@ export default function TestPage() {
         .update({
           answers: { lesen: lesenAnswers, sprachbausteine: sprachAnswers },
           score_sprachbausteine: score,
+        })
+        .eq('id', attemptId)
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  // Save hoeren answers to Supabase when section completes
+  async function saveHoerenAnswers(
+    lesenAnswers: Record<string, number>,
+    sprachAnswers: Record<string, number>,
+    hoerenAnswers: Record<string, number>
+  ) {
+    if (!attemptId) return
+    const hoeren = sections[2] as HoerenSection
+    const allHoerenQuestions: (MCQuestion | ClozeQuestion)[] = hoeren.clips.flatMap(
+      (c) => c.questions
+    )
+    const score = calculateScore(hoerenAnswers, allHoerenQuestions)
+    try {
+      await supabase
+        .from('attempts')
+        .update({
+          answers: {
+            lesen: lesenAnswers,
+            sprachbausteine: sprachAnswers,
+            hoeren: hoerenAnswers,
+          },
+          score_hoeren: score,
           status: 'complete',
         })
         .eq('id', attemptId)
@@ -106,35 +158,85 @@ export default function TestPage() {
 
   async function handleNext() {
     if (!isLastQuestionInSection) {
-      // Move to the next question in the same section
+      // Move to the next question in the same clip/section
       setCurrentQuestionIndex((i) => i + 1)
       return
     }
 
-    // End of a section
+    // End of questions in this clip/section
+
+    if (isHoerenSection) {
+      if (!isLastClip) {
+        // Move to next clip, reset question index
+        setCurrentClipIndex((i) => i + 1)
+        setCurrentQuestionIndex(0)
+        return
+      }
+
+      // Finished all Hören clips — gather answers and save
+      const lesenSection = sections[0] as LesenSection
+      const sprachSection = sections[1] as SprachbausteineSection
+      const hoeren = sections[2] as HoerenSection
+
+      const lesenAnswers: Record<string, number> = {}
+      const sprachAnswers: Record<string, number> = {}
+      const hoerenAnswers: Record<string, number> = {}
+
+      for (const q of lesenSection.questions) {
+        if (answers[q.id] !== undefined) lesenAnswers[q.id] = answers[q.id]
+      }
+      for (const q of sprachSection.questions) {
+        if (answers[q.id] !== undefined) sprachAnswers[q.id] = answers[q.id]
+      }
+      for (const clip of hoeren.clips) {
+        for (const q of clip.questions) {
+          if (answers[q.id] !== undefined) hoerenAnswers[q.id] = answers[q.id]
+        }
+      }
+
+      await saveHoerenAnswers(lesenAnswers, sprachAnswers, hoerenAnswers)
+
+      if (isLastActiveSection) {
+        router.push('/report/demo')
+        return
+      }
+
+      // Advance to next section (Schreiben — not yet built)
+      setCurrentSectionIndex((i) => i + 1)
+      setCurrentQuestionIndex(0)
+      setCurrentClipIndex(0)
+      setPassageCollapsed(false)
+      return
+    }
+
+    // Non-Hören sections
+
     if (currentSectionIndex === 0) {
       // Finished Lesen — gather lesen-only answers and save
-      const lesenQuestions = sections[0].questions as (MCQuestion | ClozeQuestion)[]
+      const lesenSection = sections[0] as LesenSection
       const lesenAnswers: Record<string, number> = {}
-      for (const q of lesenQuestions) {
+      for (const q of lesenSection.questions) {
         if (answers[q.id] !== undefined) lesenAnswers[q.id] = answers[q.id]
       }
       await saveLesenAnswers(lesenAnswers)
     }
 
-    if (isLastActiveSection) {
-      // Finished Sprachbausteine — save everything and navigate
-      const lesenQuestions = sections[0].questions as (MCQuestion | ClozeQuestion)[]
-      const sprachQuestions = sections[1].questions as (MCQuestion | ClozeQuestion)[]
+    if (currentSectionIndex === 1) {
+      // Finished Sprachbausteine — save lesen + sprachbausteine
+      const lesenSection = sections[0] as LesenSection
+      const sprachSection = sections[1] as SprachbausteineSection
       const lesenAnswers: Record<string, number> = {}
       const sprachAnswers: Record<string, number> = {}
-      for (const q of lesenQuestions) {
+      for (const q of lesenSection.questions) {
         if (answers[q.id] !== undefined) lesenAnswers[q.id] = answers[q.id]
       }
-      for (const q of sprachQuestions) {
+      for (const q of sprachSection.questions) {
         if (answers[q.id] !== undefined) sprachAnswers[q.id] = answers[q.id]
       }
       await saveSprachbausteineAnswers(lesenAnswers, sprachAnswers)
+    }
+
+    if (isLastActiveSection) {
       router.push('/report/demo')
       return
     }
@@ -142,20 +244,32 @@ export default function TestPage() {
     // Move to next section
     setCurrentSectionIndex((i) => i + 1)
     setCurrentQuestionIndex(0)
+    setCurrentClipIndex(0)
     setPassageCollapsed(false)
   }
 
   // Derive next button label
   let nextLabel = 'Next →'
-  if (isLastQuestionInSection && !isLastActiveSection) nextLabel = 'Next Section →'
-  if (isLastQuestionInSection && isLastActiveSection) nextLabel = 'Continue →'
+  if (isHoerenSection) {
+    if (isLastQuestionInSection && !isLastClip) nextLabel = 'Next Clip →'
+    else if (isLastQuestionInSection && isLastClip && !isLastActiveSection)
+      nextLabel = 'Next Section →'
+    else if (isLastQuestionInSection && isLastClip && isLastActiveSection)
+      nextLabel = 'Continue →'
+  } else {
+    if (isLastQuestionInSection && !isLastActiveSection) nextLabel = 'Next Section →'
+    if (isLastQuestionInSection && isLastActiveSection) nextLabel = 'Continue →'
+  }
 
-  // Progress bar: percentage through active sections
-  const totalActiveQuestions = sections.reduce((acc, s) => acc + s.questions.length, 0)
+  // Progress bar: count all questions across active sections
+  const totalActiveQuestions = sections.reduce((acc, s) => {
+    if (s.id === 'hoeren') {
+      return acc + (s as HoerenSection).clips.reduce((a, c) => a + c.questions.length, 0)
+    }
+    return acc + (s as LesenSection | SprachbausteineSection).questions.length
+  }, 0)
   const answeredCount = Object.keys(answers).length
   const progressPct = Math.round((answeredCount / totalActiveQuestions) * 100)
-
-  const isLesenSection = currentSection.id === 'lesen'
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
@@ -186,7 +300,7 @@ export default function TestPage() {
             {ALL_SECTIONS.map((s, i) => {
               const isActive = i === currentSectionIndex
               const isCompleted = i < currentSectionIndex
-              const isLocked = i > sections.length - 1 // phases 3-5 not yet built
+              const isLocked = i > sections.length - 1 // phases 4-5 not yet built
 
               return (
                 <div key={s.id} className="flex flex-col items-center gap-1">
@@ -230,10 +344,26 @@ export default function TestPage() {
             <span className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 text-sm font-medium px-4 py-1.5 rounded-full">
               {currentSection.label}
             </span>
-            <span className="text-sm text-gray-400">
-              Question {currentQuestionIndex + 1} of {currentQuestions.length}
-            </span>
+            {isHoerenSection ? (
+              <span className="text-sm text-gray-400">
+                Clip {currentClipIndex + 1} of {(currentSection as HoerenSection).clips.length}
+                {' · '}
+                Question {currentQuestionIndex + 1} of {currentQuestions.length}
+              </span>
+            ) : (
+              <span className="text-sm text-gray-400">
+                Question {currentQuestionIndex + 1} of {currentQuestions.length}
+              </span>
+            )}
           </div>
+
+          {/* Audio player (Hören only) */}
+          {isHoerenSection && (
+            <AudioPlayer
+              src={(currentSection as HoerenSection).clips[currentClipIndex].audioSrc}
+              clipNumber={currentClipIndex + 1}
+            />
+          )}
 
           {/* Reading passage (Lesen only) */}
           {isLesenSection && currentSection.id === 'lesen' && (
@@ -243,7 +373,7 @@ export default function TestPage() {
                 className="w-full flex items-center justify-between px-6 py-4 text-left"
               >
                 <span className="font-semibold text-gray-900">
-                  {currentSection.passageTitle}
+                  {(currentSection as LesenSection).passageTitle}
                 </span>
                 <span className="text-xs text-gray-400 ml-4 shrink-0">
                   {passageCollapsed ? 'Show text ▼' : 'Hide text ▲'}
@@ -253,7 +383,7 @@ export default function TestPage() {
                 <div className="px-6 pb-6">
                   <div className="h-px bg-gray-100 mb-4" />
                   <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-                    {currentSection.passage}
+                    {(currentSection as LesenSection).passage}
                   </p>
                 </div>
               )}
