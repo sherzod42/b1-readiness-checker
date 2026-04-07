@@ -5,20 +5,17 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 type Props = {
   maxSeconds: number
   onSubmit: (audioBlob: Blob) => void
-  onPrepComplete?: () => void
 }
 
-type Phase = 'prep' | 'recording' | 'review'
+type Phase = 'idle' | 'recording' | 'review'
 
-const PREP_SECONDS = 30
 const CIRCUMFERENCE = 2 * Math.PI * 52 // r=52 → ≈326.73
 
-export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete }: Props) {
-  const [phase, setPhase] = useState<Phase>('prep')
-  const [secondsLeft, setSecondsLeft] = useState(PREP_SECONDS)
+export default function SpeakingRecorder({ maxSeconds, onSubmit }: Props) {
+  const [phase, setPhase] = useState<Phase>('idle')
+  const [secondsLeft, setSecondsLeft] = useState(maxSeconds)
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -26,7 +23,6 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
   const recorderRef = useRef<MediaRecorder | null>(null)
   const urlRef = useRef<string | null>(null)
 
-  // Clear any running timer
   function clearTimer() {
     if (timerRef.current) {
       clearInterval(timerRef.current)
@@ -34,7 +30,6 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
     }
   }
 
-  // Start the actual MediaRecorder
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -57,11 +52,9 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
 
       recorder.start()
       recorderRef.current = recorder
-      setMediaRecorder(recorder)
       setPhase('recording')
       setSecondsLeft(maxSeconds)
 
-      // Start recording countdown
       timerRef.current = setInterval(() => {
         setSecondsLeft((prev) => {
           if (prev <= 1) {
@@ -75,30 +68,9 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
         })
       }, 1000)
     } catch {
-      // Microphone access denied or unavailable — silently handle
+      // Microphone access denied or unavailable
     }
   }, [maxSeconds])
-
-  // Prep countdown effect
-  useEffect(() => {
-    if (phase !== 'prep') return
-
-    setSecondsLeft(PREP_SECONDS)
-    timerRef.current = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearTimer()
-          onPrepComplete?.()
-          startRecording()
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    return () => clearTimer()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase === 'prep'])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -121,7 +93,6 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
   }
 
   function handleReRecord() {
-    // Revoke old URL
     if (urlRef.current) {
       URL.revokeObjectURL(urlRef.current)
       urlRef.current = null
@@ -129,9 +100,9 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
     setAudioBlob(null)
     setAudioUrl(null)
     setIsPlaying(false)
-    setMediaRecorder(null)
     recorderRef.current = null
-    setPhase('prep')
+    setPhase('idle')
+    setSecondsLeft(maxSeconds)
   }
 
   function handleSubmit() {
@@ -150,54 +121,28 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
     }
   }
 
-  // Compute ring stroke-dashoffset
-  const totalSeconds = phase === 'prep' ? PREP_SECONDS : maxSeconds
-  const dashOffset = CIRCUMFERENCE * (1 - secondsLeft / totalSeconds)
-  const ringColor = phase === 'prep' ? '#4f46e5' : '#e11d48' // indigo-600 / rose-600
+  const dashOffset = CIRCUMFERENCE * (1 - secondsLeft / maxSeconds)
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-6">
-      {/* ---- PREP PHASE ---- */}
-      {phase === 'prep' && (
-        <div className="flex flex-col items-center gap-6">
+
+      {/* ---- IDLE PHASE ---- */}
+      {phase === 'idle' && (
+        <div className="flex flex-col items-center gap-5">
           <p className="text-sm text-gray-500 text-center">
-            Bereiten Sie sich vor. Die Aufnahme startet automatisch.
+            Lesen Sie das Bild und die Aufgabe. Wenn Sie bereit sind, starten Sie die Aufnahme.
           </p>
-
-          {/* Circular countdown ring */}
-          <div className="relative inline-flex items-center justify-center">
-            <svg width="120" height="120" className="-rotate-90">
-              {/* Background track */}
-              <circle
-                cx="60"
-                cy="60"
-                r="52"
-                fill="none"
-                stroke="#e5e7eb"
-                strokeWidth="8"
-              />
-              {/* Progress arc */}
-              <circle
-                cx="60"
-                cy="60"
-                r="52"
-                fill="none"
-                stroke={ringColor}
-                strokeWidth="8"
-                strokeLinecap="round"
-                strokeDasharray={CIRCUMFERENCE}
-                strokeDashoffset={dashOffset}
-                style={{ transition: 'stroke-dashoffset 1s linear' }}
-              />
-            </svg>
-            <span className="absolute text-2xl font-bold text-indigo-600">
-              {secondsLeft}
-            </span>
-          </div>
-
-          <p className="text-base font-semibold text-gray-700">
-            Vorbereitung: {secondsLeft}s
+          <p className="text-xs text-gray-400 text-center">
+            Maximale Aufnahmedauer: {maxSeconds} Sekunden
           </p>
+          <button
+            onClick={startRecording}
+            className="inline-flex items-center gap-3 bg-rose-600 text-white font-semibold px-8 py-4 rounded-xl hover:bg-rose-700 transition-colors shadow-sm text-base"
+          >
+            {/* Circle record icon */}
+            <span className="w-4 h-4 rounded-full bg-white inline-block shrink-0" />
+            Aufnahme starten
+          </button>
         </div>
       )}
 
@@ -216,20 +161,13 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
           {/* Circular countdown ring */}
           <div className="relative inline-flex items-center justify-center">
             <svg width="120" height="120" className="-rotate-90">
+              <circle cx="60" cy="60" r="52" fill="none" stroke="#e5e7eb" strokeWidth="8" />
               <circle
                 cx="60"
                 cy="60"
                 r="52"
                 fill="none"
-                stroke="#e5e7eb"
-                strokeWidth="8"
-              />
-              <circle
-                cx="60"
-                cy="60"
-                r="52"
-                fill="none"
-                stroke={ringColor}
+                stroke="#e11d48"
                 strokeWidth="8"
                 strokeLinecap="round"
                 strokeDasharray={CIRCUMFERENCE}
@@ -237,17 +175,14 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
                 style={{ transition: 'stroke-dashoffset 1s linear' }}
               />
             </svg>
-            <span className="absolute text-2xl font-bold text-rose-600">
-              {secondsLeft}
-            </span>
+            <span className="absolute text-2xl font-bold text-rose-600">{secondsLeft}</span>
           </div>
 
           {/* Stop button */}
           <button
             onClick={stopRecordingEarly}
-            className="inline-flex items-center gap-2 bg-rose-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-rose-700 transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 bg-gray-800 text-white font-semibold px-6 py-3 rounded-xl hover:bg-gray-900 transition-colors shadow-sm"
           >
-            {/* Square stop icon */}
             <span className="w-4 h-4 bg-white rounded-sm inline-block shrink-0" />
             Aufnahme stoppen
           </button>
@@ -259,7 +194,6 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
         <div className="flex flex-col items-center gap-6">
           <p className="text-sm font-medium text-gray-600">Ihre Aufnahme:</p>
 
-          {/* Hidden HTML audio element */}
           <audio
             ref={audioRef}
             src={audioUrl}
@@ -267,14 +201,12 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
             className="hidden"
           />
 
-          {/* Custom play/pause button */}
           <button
             onClick={togglePlayback}
             className="inline-flex items-center gap-3 bg-gray-100 text-gray-800 font-semibold px-6 py-3 rounded-xl hover:bg-gray-200 transition-colors"
           >
             {isPlaying ? (
               <>
-                {/* Pause icon */}
                 <span className="flex gap-1">
                   <span className="w-1.5 h-5 bg-gray-700 rounded-sm" />
                   <span className="w-1.5 h-5 bg-gray-700 rounded-sm" />
@@ -283,14 +215,12 @@ export default function SpeakingRecorder({ maxSeconds, onSubmit, onPrepComplete 
               </>
             ) : (
               <>
-                {/* Play icon */}
                 <span className="w-0 h-0 border-t-[8px] border-b-[8px] border-l-[14px] border-t-transparent border-b-transparent border-l-gray-700" />
                 Abspielen
               </>
             )}
           </button>
 
-          {/* Action buttons */}
           <div className="flex gap-3 w-full">
             <button
               onClick={handleReRecord}
