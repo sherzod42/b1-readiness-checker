@@ -42,7 +42,17 @@ export type HoerenSection = {
   clips: HoerenClip[]
 }
 
-export type TestSection = LesenSection | SprachbausteineSection | HoerenSection
+export type SchreibenSection = {
+  id: 'schreiben'
+  label: 'Schreiben'
+  prompt: string        // the writing task shown to the user
+  context: string       // background context shown above the prompt (e.g. "You received this email:")
+  exampleEmail: string  // the email they're replying to (shown in a box)
+  minWords: number      // 80
+  maxWords: number      // 100
+}
+
+export type TestSection = LesenSection | SprachbausteineSection | HoerenSection | SchreibenSection
 
 // ---------------------------------------------------------------------------
 // Lesen — Reading passage + 5 multiple-choice questions
@@ -245,4 +255,26 @@ const hoerenSection: HoerenSection = {
   ],
 }
 
-export const sections: TestSection[] = [lesenSection, sprachbausteineSection, hoerenSection]
+const schreibenSection: SchreibenSection = {
+  id: 'schreiben',
+  label: 'Schreiben',
+  context: 'Sie haben diese E-Mail von Ihrer Freundin Anna bekommen:',
+  exampleEmail: `Liebe/r [Name],
+
+ich hoffe, es geht dir gut! Ich wollte fragen, ob du am kommenden Samstag
+Zeit hast. Wir könnten zusammen ins Kino gehen oder einfach einen Kaffee
+trinken. Es gibt ein neues Café in der Stadtmitte, das alle sehr loben.
+
+Bitte schreib mir, ob das passt und was du lieber machen möchtest.
+
+Viele Grüße,
+Anna`,
+  prompt: `Schreiben Sie eine Antwort an Anna (80–100 Wörter). Schreiben Sie über:
+• ob Sie am Samstag Zeit haben
+• was Sie lieber machen möchten (Kino oder Café) und warum
+• einen Vorschlag für die Uhrzeit`,
+  minWords: 80,
+  maxWords: 100,
+}
+
+export const sections: TestSection[] = [lesenSection, sprachbausteineSection, hoerenSection, schreibenSection]

@@ -10,6 +10,7 @@ import type {
   LesenSection,
   SprachbausteineSection,
   HoerenSection,
+  SchreibenSection,
 } from '@/data/questions'
 import QuestionCard from '@/components/QuestionCard'
 import AudioPlayer from '@/components/AudioPlayer'
@@ -40,6 +41,8 @@ export default function TestPage() {
   const [answers, setAnswers] = useState<Record<string, number>>({})
   const [attemptId, setAttemptId] = useState<string | null>(null)
   const [passageCollapsed, setPassageCollapsed] = useState(false)
+  const [writingText, setWritingText] = useState('')
+  const [isEvaluating, setIsEvaluating] = useState(false)
 
   // Create a new attempt row in Supabase on mount
   useEffect(() => {
@@ -61,17 +64,22 @@ export default function TestPage() {
   const currentSection = sections[currentSectionIndex]
   const isHoerenSection = currentSection.id === 'hoeren'
   const isLesenSection = currentSection.id === 'lesen'
+  const isSchreibenSection = currentSection.id === 'schreiben'
   const isLastActiveSection = currentSectionIndex === sections.length - 1
 
-  // Derive current questions based on section type
-  const currentQuestions: (MCQuestion | ClozeQuestion)[] = isHoerenSection
+  // Derive current questions based on section type (not applicable for Schreiben)
+  const currentQuestions: (MCQuestion | ClozeQuestion)[] = isSchreibenSection
+    ? []
+    : isHoerenSection
     ? (currentSection as HoerenSection).clips[currentClipIndex].questions
     : (currentSection as LesenSection | SprachbausteineSection).questions as (MCQuestion | ClozeQuestion)[]
 
-  const currentQuestion = currentQuestions[currentQuestionIndex]
-  const selectedAnswer = answers[currentQuestion.id] ?? null
+  const currentQuestion = isSchreibenSection ? null : currentQuestions[currentQuestionIndex]
+  const selectedAnswer = currentQuestion ? (answers[currentQuestion.id] ?? null) : null
 
-  const isLastQuestionInSection = currentQuestionIndex === currentQuestions.length - 1
+  const isLastQuestionInSection = isSchreibenSection
+    ? true
+    : currentQuestionIndex === currentQuestions.length - 1
 
   // For Hören: check if this is the last clip
   const hoerenClips = isHoerenSection
@@ -80,6 +88,11 @@ export default function TestPage() {
   const isLastClip = hoerenClips
     ? currentClipIndex === hoerenClips.length - 1
     : false
+
+  // Word count for Schreiben
+  const wordCount = writingText.trim()
+    ? writingText.trim().split(/\s+/).filter(Boolean).length
+    : 0
 
   // Save lesen answers to Supabase when section completes
   async function saveLesenAnswers(lesenAnswers: Record<string, number>) {
@@ -153,10 +166,44 @@ export default function TestPage() {
   }
 
   function handleAnswer(index: number) {
+    if (!currentQuestion) return
     setAnswers((prev) => ({ ...prev, [currentQuestion.id]: index }))
   }
 
   async function handleNext() {
+    // Handle Schreiben section submission
+    if (isSchreibenSection) {
+      setIsEvaluating(true)
+      try {
+        const res = await fetch('/api/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: writingText, type: 'writing' }),
+        })
+        const evaluationResult = await res.json()
+
+        if (attemptId) {
+          try {
+            await supabase.from('attempts').update({
+              writing_text: writingText,
+              writing_evaluation: evaluationResult,
+              score_schreiben: evaluationResult.score,
+            }).eq('id', attemptId)
+          } catch {
+            // Non-blocking
+          }
+        }
+      } catch {
+        // Non-blocking — continue even if evaluation fails
+      } finally {
+        setIsEvaluating(false)
+      }
+
+      // Advance to Sprechen (not yet built) → navigate to report
+      router.push('/report/demo')
+      return
+    }
+
     if (!isLastQuestionInSection) {
       // Move to the next question in the same clip/section
       setCurrentQuestionIndex((i) => i + 1)
@@ -250,7 +297,9 @@ export default function TestPage() {
 
   // Derive next button label
   let nextLabel = 'Next →'
-  if (isHoerenSection) {
+  if (isSchreibenSection) {
+    nextLabel = isEvaluating ? 'Evaluating...' : 'Submit Writing →'
+  } else if (isHoerenSection) {
     if (isLastQuestionInSection && !isLastClip) nextLabel = 'Next Clip →'
     else if (isLastQuestionInSection && isLastClip && !isLastActiveSection)
       nextLabel = 'Next Section →'
@@ -262,13 +311,18 @@ export default function TestPage() {
   }
 
   // Progress bar: count all questions across active sections
+  // Schreiben contributes 1 (answered when writingText.length > 0)
   const totalActiveQuestions = sections.reduce((acc, s) => {
     if (s.id === 'hoeren') {
       return acc + (s as HoerenSection).clips.reduce((a, c) => a + c.questions.length, 0)
     }
+    if (s.id === 'schreiben') {
+      return acc + 1
+    }
     return acc + (s as LesenSection | SprachbausteineSection).questions.length
   }, 0)
-  const answeredCount = Object.keys(answers).length
+  const schreibenAnswered = writingText.length > 0 ? 1 : 0
+  const answeredCount = Object.keys(answers).length + schreibenAnswered
   const progressPct = Math.round((answeredCount / totalActiveQuestions) * 100)
 
   return (
@@ -300,7 +354,7 @@ export default function TestPage() {
             {ALL_SECTIONS.map((s, i) => {
               const isActive = i === currentSectionIndex
               const isCompleted = i < currentSectionIndex
-              const isLocked = i > sections.length - 1 // phases 4-5 not yet built
+              const isLocked = i >= sections.length // phases not yet built (Sprechen = index 4)
 
               return (
                 <div key={s.id} className="flex flex-col items-center gap-1">
@@ -350,6 +404,8 @@ export default function TestPage() {
                 {' · '}
                 Question {currentQuestionIndex + 1} of {currentQuestions.length}
               </span>
+            ) : isSchreibenSection ? (
+              <span className="text-sm text-gray-400">Freies Schreiben</span>
             ) : (
               <span className="text-sm text-gray-400">
                 Question {currentQuestionIndex + 1} of {currentQuestions.length}
@@ -390,25 +446,74 @@ export default function TestPage() {
             </div>
           )}
 
-          {/* Question card */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
-            <QuestionCard
-              question={currentQuestion}
-              selectedAnswer={selectedAnswer}
-              onAnswer={handleAnswer}
-              questionNumber={currentQuestionIndex + 1}
-              totalQuestions={currentQuestions.length}
-            />
-          </div>
+          {/* Schreiben writing UI */}
+          {isSchreibenSection && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-5">
+              {/* Context label */}
+              <p className="text-sm text-gray-500">
+                {(currentSection as SchreibenSection).context}
+              </p>
+
+              {/* Example email box */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl px-5 py-4">
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                  {(currentSection as SchreibenSection).exampleEmail}
+                </p>
+              </div>
+
+              {/* Task prompt */}
+              <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-line font-medium">
+                {(currentSection as SchreibenSection).prompt}
+              </p>
+
+              {/* Textarea */}
+              <textarea
+                value={writingText}
+                onChange={(e) => setWritingText(e.target.value)}
+                placeholder="Schreiben Sie hier Ihre Antwort..."
+                className="w-full min-h-40 resize-y border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                disabled={isEvaluating}
+              />
+
+              {/* Live word count */}
+              <div className="flex justify-end">
+                <span
+                  className={[
+                    'text-sm font-medium',
+                    wordCount >= 80 && wordCount <= 100
+                      ? 'text-green-600'
+                      : wordCount > 100
+                      ? 'text-orange-500'
+                      : 'text-gray-400',
+                  ].join(' ')}
+                >
+                  {wordCount} / 80–100 Wörter
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Question card (non-Schreiben sections only) */}
+          {!isSchreibenSection && currentQuestion && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+              <QuestionCard
+                question={currentQuestion}
+                selectedAnswer={selectedAnswer}
+                onAnswer={handleAnswer}
+                questionNumber={currentQuestionIndex + 1}
+                totalQuestions={currentQuestions.length}
+              />
+            </div>
+          )}
 
           {/* Next button */}
           <div className="flex justify-end">
             <button
               onClick={handleNext}
-              disabled={selectedAnswer === null}
+              disabled={isSchreibenSection ? (wordCount < 60 || isEvaluating) : selectedAnswer === null}
               className={[
                 'inline-flex items-center justify-center font-semibold px-8 py-3 rounded-xl transition-colors text-sm',
-                selectedAnswer !== null
+                (isSchreibenSection ? wordCount >= 60 && !isEvaluating : selectedAnswer !== null)
                   ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed',
               ].join(' ')}
