@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { sections } from '@/data/questions'
@@ -43,6 +43,7 @@ export default function TestPage() {
   const [passageCollapsed, setPassageCollapsed] = useState(false)
   const [writingText, setWritingText] = useState('')
   const [isEvaluating, setIsEvaluating] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Create a new attempt row in Supabase on mount
   useEffect(() => {
@@ -89,10 +90,8 @@ export default function TestPage() {
     ? currentClipIndex === hoerenClips.length - 1
     : false
 
-  // Word count for Schreiben
-  const wordCount = writingText.trim()
-    ? writingText.trim().split(/\s+/).filter(Boolean).length
-    : 0
+  // Word count for Schreiben — split on any whitespace, filter empty tokens
+  const wordCount = writingText.trim().split(/\s+/).filter((w) => w.length > 0).length
 
   // Save lesen answers to Supabase when section completes
   async function saveLesenAnswers(lesenAnswers: Record<string, number>) {
@@ -466,12 +465,19 @@ export default function TestPage() {
                 {(currentSection as SchreibenSection).prompt}
               </p>
 
-              {/* Textarea */}
+              {/* Textarea — auto-expands with content */}
               <textarea
+                ref={textareaRef}
                 value={writingText}
-                onChange={(e) => setWritingText(e.target.value)}
+                onChange={(e) => {
+                  setWritingText(e.target.value)
+                  // Auto-expand height
+                  e.target.style.height = 'auto'
+                  e.target.style.height = `${e.target.scrollHeight}px`
+                }}
                 placeholder="Schreiben Sie hier Ihre Antwort..."
-                className="w-full min-h-40 resize-y border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                rows={6}
+                className="w-full resize-none border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition overflow-hidden"
                 disabled={isEvaluating}
               />
 
