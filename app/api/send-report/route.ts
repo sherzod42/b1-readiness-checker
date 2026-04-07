@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     // Send email — wrapped in try/catch so email failure doesn't block report access
     try {
       await resend.emails.send({
-        from: 'B1 Readiness Checker <noreply@heylama.com>',
+        from: 'B1 Readiness Checker <onboarding@resend.dev>',
         to: email,
         subject: `Ihr B1-Testergebnis: ${overall}% — ${readinessLabel}`,
         html: `
