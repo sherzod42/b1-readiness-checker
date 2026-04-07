@@ -54,7 +54,7 @@ export default function TestPage() {
       try {
         const { data } = await supabase
           .from('attempts')
-          .insert({ status: 'in_progress' })
+          .insert({})
           .select('id')
           .single()
         if (data?.id) setAttemptId(data.id)

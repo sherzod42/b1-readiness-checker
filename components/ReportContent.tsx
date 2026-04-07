@@ -333,12 +333,12 @@ export default function ReportContent({ attempt, blurred = false }: Props) {
               <div key={sub.label} className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-700">{sub.label}</span>
-                  <span className="font-semibold text-gray-900">{sub.score}/25</span>
+                  <span className="font-semibold text-gray-900">{sub.score ?? '—'}/25</span>
                 </div>
                 <div className="h-1.5 bg-gray-100 rounded-full">
                   <div
-                    className={`h-1.5 rounded-full ${scoreColor(Math.round((sub.score / 25) * 100))}`}
-                    style={{ width: `${Math.round((sub.score / 25) * 100)}%` }}
+                    className={`h-1.5 rounded-full ${scoreColor(Math.round(((sub.score ?? 0) / 25) * 100))}`}
+                    style={{ width: `${Math.round(((sub.score ?? 0) / 25) * 100)}%` }}
                   />
                 </div>
               </div>
@@ -404,12 +404,12 @@ export default function ReportContent({ attempt, blurred = false }: Props) {
               <div key={sub.label} className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-700">{sub.label}</span>
-                  <span className="font-semibold text-gray-900">{sub.score}/25</span>
+                  <span className="font-semibold text-gray-900">{sub.score ?? '—'}/25</span>
                 </div>
                 <div className="h-1.5 bg-gray-100 rounded-full">
                   <div
-                    className={`h-1.5 rounded-full ${scoreColor(Math.round((sub.score / 25) * 100))}`}
-                    style={{ width: `${Math.round((sub.score / 25) * 100)}%` }}
+                    className={`h-1.5 rounded-full ${scoreColor(Math.round(((sub.score ?? 0) / 25) * 100))}`}
+                    style={{ width: `${Math.round(((sub.score ?? 0) / 25) * 100)}%` }}
                   />
                 </div>
               </div>
