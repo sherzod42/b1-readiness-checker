@@ -289,7 +289,7 @@ Anna`,
 const sprechenSection: SprechenSection = {
   id: 'sprechen',
   label: 'Sprechen',
-  imageSrc: '/park.jpg',
+  imageSrc: '/park.jpeg',
   imageAlt: 'Stadtpark mit Menschen beim Schachspielen, Joggen und Spielen',
   task: `Beschreiben Sie das Bild. Sagen Sie:
 • Was sehen Sie auf dem Bild?
