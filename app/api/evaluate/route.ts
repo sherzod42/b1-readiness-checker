@@ -83,7 +83,9 @@ Return JSON with exactly these fields:
     let parsed: ParsedResult
 
     try {
-      parsed = JSON.parse(rawText) as ParsedResult
+      // Strip markdown code fences if the model wraps the JSON
+      const jsonText = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+      parsed = JSON.parse(jsonText) as ParsedResult
     } catch {
       return NextResponse.json({ error: 'Evaluation failed' }, { status: 500 })
     }

@@ -160,7 +160,6 @@ export default function TestPage() {
             hoeren: hoerenAnswers,
           },
           score_hoeren: score,
-          status: 'complete',
         })
         .eq('id', attemptId)
     } catch {

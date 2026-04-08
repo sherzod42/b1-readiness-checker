@@ -10,9 +10,9 @@ type Props = {
 const demoAttempt: Attempt = {
   id: 'demo',
   email: 'demo@example.com',
-  score_lesen: 3,
-  score_sprachbausteine: 4,
-  score_hoeren: 3,
+  score_lesen: 60,
+  score_sprachbausteine: 67,
+  score_hoeren: 75,
   score_schreiben: 65,
   score_sprechen: 70,
   answers: {
@@ -93,9 +93,15 @@ export default async function ReportPage({ params }: Props) {
   if (!attempt) {
     return (
       <main className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-4">
           <h1 className="text-xl font-bold text-gray-900">Bericht nicht gefunden</h1>
           <p className="text-sm text-gray-500">Der angeforderte Bericht existiert nicht oder ist abgelaufen.</p>
+          <a
+            href="/"
+            className="inline-block mt-2 text-sm font-semibold text-blue-600 hover:text-blue-700 underline"
+          >
+            ← Zur Startseite
+          </a>
         </div>
       </main>
     )

@@ -32,10 +32,10 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Versuch nicht gefunden.' }, { status: 404 })
     }
 
-    // Compute percentages
-    const lesenPct = Math.round(((attempt.score_lesen ?? 0) / 5) * 100)
-    const sprachPct = Math.round(((attempt.score_sprachbausteine ?? 0) / 6) * 100)
-    const hoerenPct = Math.round(((attempt.score_hoeren ?? 0) / 4) * 100)
+    // Scores are stored as 0–100 percentages already
+    const lesenPct = attempt.score_lesen ?? 0
+    const sprachPct = attempt.score_sprachbausteine ?? 0
+    const hoerenPct = attempt.score_hoeren ?? 0
     const schreibenPct = attempt.score_schreiben ?? 0
     const sprechenPct = attempt.score_sprechen ?? 0
     const overall = Math.round((lesenPct + sprachPct + hoerenPct + schreibenPct + sprechenPct) / 5)
