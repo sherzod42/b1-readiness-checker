@@ -478,24 +478,6 @@ export default function ReportContent({ attempt, blurred = false }: Props) {
           })}
         </div>
       </div>
-
-      {/* HeyLama CTA */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 md:p-8 flex flex-col sm:flex-row items-start sm:items-center gap-5">
-        <div className="flex-1 space-y-1">
-          <p className="font-semibold text-gray-900">Möchten Sie Ihr Deutsch verbessern?</p>
-          <p className="text-sm text-gray-500">
-            HeyLama bietet personalisierte KI-Sprachkurse auf Deutsch — genau auf Ihre Schwächen zugeschnitten.
-          </p>
-        </div>
-        <a
-          href="https://heylama.app"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 inline-flex items-center justify-center bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl text-sm hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          HeyLama entdecken →
-        </a>
-      </div>
     </div>
   )
 
