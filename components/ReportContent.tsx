@@ -1,5 +1,5 @@
-import { sections } from '@/data/questions'
-import type { LesenSection, SprachbausteineSection, HoerenSection, MCQuestion, ClozeQuestion } from '@/data/questions'
+import { allLesenQuestions, allSprachbausteineQuestions, allHoerenQuestions } from '@/data/questions'
+import type { MCQuestion, ClozeQuestion } from '@/data/questions'
 
 type WritingEvaluation = {
   grammar: number
@@ -141,11 +141,7 @@ export default function ReportContent({ attempt, blurred = false }: Props) {
     { key: 'sprechen', label: 'Sprechen', sub: 'Mündlicher Ausdruck', pct: sprechenPct },
   ]
 
-  // Build wrong-answer lists for MC/cloze sections
-  const lesenSection = sections.find((s) => s.id === 'lesen') as LesenSection | undefined
-  const sprachSection = sections.find((s) => s.id === 'sprachbausteine') as SprachbausteineSection | undefined
-  const hoerenSection = sections.find((s) => s.id === 'hoeren') as HoerenSection | undefined
-
+  // Build wrong-answer lists — use flat question pools so any variant's IDs resolve correctly
   const lesenAnswers = attempt.answers?.lesen ?? {}
   const sprachAnswers = attempt.answers?.sprachbausteine ?? {}
   const hoerenAnswers = attempt.answers?.hoeren ?? {}
@@ -186,12 +182,9 @@ export default function ReportContent({ attempt, blurred = false }: Props) {
       })
   }
 
-  const lesenWrong = lesenSection ? getWrongAnswers(lesenSection.questions as (MCQuestion | ClozeQuestion)[], lesenAnswers) : []
-  const sprachWrong = sprachSection ? getWrongAnswers(sprachSection.questions as (MCQuestion | ClozeQuestion)[], sprachAnswers) : []
-  const hoerenAllQuestions: (MCQuestion | ClozeQuestion)[] = hoerenSection
-    ? hoerenSection.clips.flatMap((c) => c.questions)
-    : []
-  const hoerenWrong = getWrongAnswers(hoerenAllQuestions, hoerenAnswers)
+  const lesenWrong = getWrongAnswers(allLesenQuestions as (MCQuestion | ClozeQuestion)[], lesenAnswers)
+  const sprachWrong = getWrongAnswers(allSprachbausteineQuestions as (MCQuestion | ClozeQuestion)[], sprachAnswers)
+  const hoerenWrong = getWrongAnswers(allHoerenQuestions as (MCQuestion | ClozeQuestion)[], hoerenAnswers)
 
   const priorityActions = getPriorityActions(attempt, sectionScores)
 
@@ -273,7 +266,7 @@ export default function ReportContent({ attempt, blurred = false }: Props) {
             ) : (
               <div className="space-y-3">
                 {sprachWrong.map((w) => {
-                  const q = sprachSection?.questions.find((q) => q.id === w.id)
+                  const q = allSprachbausteineQuestions.find((q) => q.id === w.id)
                   if (!q || q.type !== 'cloze') return null
                   const userIdx = sprachAnswers[q.id]
                   return (

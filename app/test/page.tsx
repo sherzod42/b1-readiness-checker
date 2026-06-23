@@ -3,7 +3,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { sections } from '@/data/questions'
+import {
+  lesenPool,
+  sprachbausteinePool,
+  hoerenPool,
+  schreibenPool,
+  sprechenPool,
+  pickRandom,
+} from '@/data/questions'
 import type {
   MCQuestion,
   ClozeQuestion,
@@ -12,6 +19,7 @@ import type {
   HoerenSection,
   SchreibenSection,
   SprechenSection,
+  TestSection,
 } from '@/data/questions'
 import QuestionCard from '@/components/QuestionCard'
 import AudioPlayer from '@/components/AudioPlayer'
@@ -36,6 +44,14 @@ function calculateScore(
 
 export default function TestPage() {
   const router = useRouter()
+
+  const [sections] = useState<TestSection[]>(() => [
+    pickRandom(lesenPool),
+    pickRandom(sprachbausteinePool),
+    pickRandom(hoerenPool),
+    pickRandom(schreibenPool),
+    pickRandom(sprechenPool),
+  ])
 
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
