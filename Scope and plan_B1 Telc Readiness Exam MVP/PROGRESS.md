@@ -1,7 +1,7 @@
 # B1 Readiness Checker — Build Progress Log
 
-> Last updated: 2026-04-07
-> Status: Phase 5 complete — full end-to-end flow working. Phase 6 (Polish + Launch) is next.
+> Last updated: 2026-06-22
+> Status: Phase 6 in progress — landing page redesign implemented, not yet pushed to GitHub/Vercel.
 
 ---
 
@@ -131,14 +131,40 @@
 
 ---
 
-### Phase 6: Polish + Launch — PENDING (next)
+### Phase 6: Polish + Launch — IN PROGRESS 🔄
 
-- [ ] Mobile responsiveness
-- [ ] Error handling + loading states
-- [ ] Landing page copy/design polish
-- [ ] Full end-to-end test with real data (all 5 sections)
+#### Session 2026-06-22 — Vercel revival + landing page redesign
+
+**Done this session:**
+- [x] Verified Vercel + Supabase + GitHub all live again
+- [x] Full local QA of all routes and API endpoints
+- [x] Reverted landing page to English (was accidentally switched to German)
+- [x] Removed erroneous HeyLama CTA from report page footer
+- [x] Added `@vercel/analytics` — wired into `app/layout.tsx`
+- [x] Pushed all fixes to GitHub → deployed to Vercel (commit `e41f9fb`)
+- [x] **Landing page full redesign** based on Claude Design handoff:
+  - New fonts: `Bricolage Grotesque` (headings) + `Hanken Grotesk` (body) via `next/font/google`
+  - Design tokens: warm off-white `#faf9f7`, indigo `#3a4fd6`, dark `#15192a`
+  - 2-col hero with report preview mockup (score gauge + per-section bars)
+  - "How it works" 3-step cards with icons on alt background
+  - 5 exam section cards with hover lift, 2→3→5-col responsive grid
+  - "What you get" dark section with benefit list + auto-generated next steps card
+  - FAQ accordion (client component `components/FaqAccordion.tsx`)
+  - CTA band (indigo gradient) + footer with telc disclaimer
+  - `floatup` animation + `.section-card:hover` in globals.css
+
+**Pending (next session):**
+- [ ] Hard-refresh browser to verify new landing page renders correctly locally
+- [ ] Commit and push landing page redesign to GitHub → Vercel
+- [ ] Full end-to-end test with real data (all 5 sections, incl. speaking/transcription)
 - [ ] Test with 3-5 real users
 - [ ] Launch
+
+**Key files changed this session:**
+- `app/page.tsx` — full redesign
+- `app/layout.tsx` — added Bricolage Grotesque + Hanken Grotesk fonts
+- `app/globals.css` — added floatup keyframe + section-card hover
+- `components/FaqAccordion.tsx` — new FAQ accordion client component
 
 ---
 
